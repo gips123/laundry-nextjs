@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LaundryHub - Laundry Marketplace MVP
 
-## Getting Started
+Frontend User untuk aplikasi Laundry Marketplace dengan fokus pada UI/UX dan alur pemesanan.
 
-First, run the development server:
+## 🚀 Fitur
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- ✅ Landing page marketplace laundry
+- ✅ Halaman login & register user (UI only / dummy)
+- ✅ List laundry dengan dummy data
+- ✅ Detail laundry & layanan
+- ✅ Flow pemesanan laundry (checkout)
+- ✅ Halaman tracking status laundry (dummy status)
+- ✅ Responsive design (mobile & desktop)
+
+## 📁 Struktur Project
+
+```
+laundry-project/
+├── app/                      # Next.js App Router
+│   ├── layout.tsx           # Root layout dengan Header & Footer
+│   ├── page.tsx             # Landing page
+│   ├── login/               # Halaman login
+│   ├── register/            # Halaman register
+│   ├── laundries/           # Halaman list & detail laundry
+│   │   ├── page.tsx         # List semua laundry
+│   │   └── [id]/page.tsx    # Detail laundry & pemilihan layanan
+│   ├── checkout/            # Halaman checkout
+│   └── orders/              # Halaman pesanan
+│       ├── page.tsx         # List semua pesanan
+│       └── [id]/page.tsx    # Tracking detail pesanan
+├── components/              # Komponen reusable
+│   ├── layout/              # Header, Footer
+│   ├── ui/                  # Button, Card, Input
+│   └── laundry/             # LaundryCard
+├── lib/                     # Utilities & dummy data
+│   ├── dummy-data.ts        # Data dummy untuk laundry, services, orders
+│   └── utils.ts             # Helper functions
+└── types/                   # TypeScript types
+    └── index.ts             # Interface definitions
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🛠️ Tech Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Next.js 16** (App Router)
+- **React 19**
+- **TypeScript**
+- **Tailwind CSS 4**
+- **clsx & tailwind-merge** (untuk className utilities)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📦 Instalasi
 
-## Learn More
+1. Install dependencies:
+```bash
+npm install
+```
 
-To learn more about Next.js, take a look at the following resources:
+2. Jalankan development server:
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. Buka [http://localhost:3000](http://localhost:3000) di browser
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📝 Catatan Penting
 
-## Deploy on Vercel
+⚠️ **Pengerjaan MASIH MENGGUNAKAN DUMMY DATA (mock data)**
+- ❌ Belum terhubung ke backend / database
+- ✅ Siap untuk integrasi backend di tahap selanjutnya (Go / PostgreSQL)
+- ✅ Data disimpan sementara di `sessionStorage` untuk demo flow
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🎨 Halaman yang Tersedia
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Landing Page** (`/`) - Hero section, fitur, dan laundry terpopuler
+2. **Login** (`/login`) - Form login (UI only)
+3. **Register** (`/register`) - Form registrasi (UI only)
+4. **List Laundry** (`/laundries`) - Daftar semua laundry dengan search & filter
+5. **Detail Laundry** (`/laundries/[id]`) - Detail laundry dan pemilihan layanan
+6. **Checkout** (`/checkout`) - Form checkout dengan ringkasan pesanan
+7. **List Orders** (`/orders`) - Daftar semua pesanan user
+8. **Tracking Order** (`/orders/[id]`) - Detail tracking status pesanan
+
+## 🔄 Flow Pemesanan
+
+1. User melihat list laundry di `/laundries`
+2. User klik laundry untuk melihat detail di `/laundries/[id]`
+3. User memilih layanan dan quantity
+4. User klik "Lanjutkan Pemesanan" → redirect ke `/checkout`
+5. User isi form checkout (alamat, tanggal, catatan)
+6. User klik "Buat Pesanan" → redirect ke `/orders/[id]` (tracking)
+7. User bisa lihat semua pesanan di `/orders`
+
+## 🎯 Next Steps untuk Integrasi Backend
+
+1. Ganti dummy data dengan API calls
+2. Implementasi authentication (JWT)
+3. Connect ke database PostgreSQL
+4. Implementasi payment gateway (opsional)
+5. Real-time tracking updates (WebSocket)
+
+## 📱 Responsive Design
+
+Semua halaman sudah responsive dan dioptimalkan untuk:
+- Mobile (320px+)
+- Tablet (768px+)
+- Desktop (1024px+)
+
+---
+
+**Status**: ✅ Frontend User MVP selesai dan siap untuk testing & validasi
