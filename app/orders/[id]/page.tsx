@@ -6,6 +6,8 @@ import { Order, OrderStatus } from '@/types';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { formatCurrency, formatDate, getStatusLabel, getStatusColor } from '@/lib/utils';
+import { orderApi } from '@/lib/api';
+import { requireAuth } from '@/lib/auth';
 
 const statusSteps: OrderStatus[] = [
   'pending',
@@ -24,22 +26,60 @@ export default function OrderTrackingPage() {
   const router = useRouter();
   const orderId = params?.id as string;
   const [order, setOrder] = useState<Order | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load order from sessionStorage (dummy - in real app, this would fetch from API)
-    const stored = sessionStorage.getItem('orders');
-    if (stored) {
-      const orders: Order[] = JSON.parse(stored);
-      const foundOrder = orders.find((o) => o.id === orderId);
-      setOrder(foundOrder || null);
-    }
+    if (!requireAuth()) return;
+    fetchOrder();
   }, [orderId]);
 
-  if (!order) {
+  const fetchOrder = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await orderApi.getById(orderId);
+
+      if (response.success && response.data) {
+        // Normalize API response
+        const normalizedOrder: Order = {
+          id: response.data.id,
+          laundryId: response.data.laundry_id,
+          laundryName: response.data.laundry_name,
+          services: response.data.services || [],
+          totalPrice: response.data.total_price,
+          status: response.data.status,
+          createdAt: response.data.created_at,
+          estimatedPickup: response.data.estimated_pickup,
+          estimatedDelivery: response.data.estimated_delivery,
+          address: response.data.delivery_address || response.data.address,
+          notes: response.data.notes,
+        };
+        setOrder(normalizedOrder);
+      } else {
+        setError(response.error || 'Pesanan tidak ditemukan');
+      }
+    } catch (err: any) {
+      setError('Terjadi kesalahan saat memuat pesanan');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Memuat...</p>
+      </div>
+    );
+  }
+
+  if (error || !order) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Pesanan tidak ditemukan</h1>
+          <h1 className="text-2xl font-bold mb-4">{error || 'Pesanan tidak ditemukan'}</h1>
           <Button onClick={() => router.push('/orders')}>
             Kembali ke Daftar Pesanan
           </Button>
@@ -256,10 +296,18 @@ export default function OrderTrackingPage() {
             <div className="flex gap-4">
               <Button
                 variant="outline"
-                onClick={() => {
+                onClick={async () => {
                   if (confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) {
-                    alert('Pesanan dibatalkan (Dummy - belum terhubung ke backend)');
-                    router.push('/orders');
+                    try {
+                      const response = await orderApi.cancel(orderId);
+                      if (response.success) {
+                        router.push('/orders');
+                      } else {
+                        alert(response.error || 'Gagal membatalkan pesanan');
+                      }
+                    } catch (err: any) {
+                      alert('Terjadi kesalahan saat membatalkan pesanan');
+                    }
                   }
                 }}
               >
@@ -278,4 +326,5 @@ export default function OrderTrackingPage() {
     </div>
   );
 }
+
 

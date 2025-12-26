@@ -3,19 +3,27 @@
 export interface Laundry {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   address: string;
   rating: number;
-  reviewCount: number;
-  image: string;
-  priceRange: string;
-  distance: number;
-  isOpen: boolean;
-  operatingHours: {
+  review_count?: number;
+  reviewCount?: number; // For backward compatibility
+  image?: string;
+  image_url?: string; // API might use this
+  price_range?: string;
+  priceRange?: string; // For backward compatibility
+  distance?: number | null;
+  is_open?: boolean;
+  isOpen?: boolean; // For backward compatibility
+  operating_hours?: {
     open: string;
     close: string;
   };
-  services: Service[];
+  operatingHours?: { // For backward compatibility
+    open: string;
+    close: string;
+  };
+  services?: Service[];
 }
 
 export interface Service {
@@ -68,5 +76,8 @@ export interface User {
   email: string;
   phone: string;
   address: string;
+  latitude?: number;
+  longitude?: number;
 }
+
 

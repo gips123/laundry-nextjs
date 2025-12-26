@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { dummyLaundries } from '@/lib/dummy-data';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils';
+import { requireAuth, isAuthenticated } from '@/lib/auth';
+import { orderApi } from '@/lib/api';
 
 interface PendingOrder {
   laundryId: string;
@@ -31,8 +32,15 @@ export default function CheckoutPage() {
     pickupTime: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // Check authentication first
+    if (!isAuthenticated()) {
+      requireAuth('/checkout');
+      return;
+    }
+
     const stored = sessionStorage.getItem('pendingOrder');
     if (stored) {
       setPendingOrder(JSON.parse(stored));
@@ -41,7 +49,7 @@ export default function CheckoutPage() {
     }
   }, [router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const newErrors: Record<string, string> = {};
@@ -62,25 +70,45 @@ export default function CheckoutPage() {
 
     if (!pendingOrder) return;
 
-    // Create order (dummy - in real app, this would call API)
-    const orderId = `order-${Date.now()}`;
-    const order = {
-      id: orderId,
-      ...pendingOrder,
-      address: formData.address,
-      notes: formData.notes,
-      status: 'pending' as const,
-      createdAt: new Date().toISOString(),
-    };
+    setIsLoading(true);
+    setErrors({});
 
-    // Store order (dummy - in real app, this would be saved to backend)
-    const existingOrders = JSON.parse(sessionStorage.getItem('orders') || '[]');
-    existingOrders.push(order);
-    sessionStorage.setItem('orders', JSON.stringify(existingOrders));
-    sessionStorage.removeItem('pendingOrder');
+    try {
+      // Combine date and time for estimated_pickup_at
+      const estimatedPickupAt = formData.pickupDate && formData.pickupTime
+        ? new Date(`${formData.pickupDate}T${formData.pickupTime}`).toISOString()
+        : undefined;
 
-    alert('Pesanan berhasil dibuat! (Dummy - belum terhubung ke backend)');
-    router.push(`/orders/${orderId}`);
+      const response = await orderApi.create({
+        laundry_id: pendingOrder.laundryId,
+        services: pendingOrder.services.map(s => ({
+          service_id: s.serviceId,
+          quantity: s.quantity,
+        })),
+        delivery_address: formData.address,
+        notes: formData.notes || undefined,
+        estimated_pickup_at: estimatedPickupAt,
+      });
+
+      if (!response.success || !response.data) {
+        setErrors({
+          address: response.error || 'Gagal membuat pesanan. Silakan coba lagi.',
+        });
+        return;
+      }
+
+      // Clear pending order
+      sessionStorage.removeItem('pendingOrder');
+
+      // Redirect to order detail
+      router.push(`/orders/${response.data.id}`);
+    } catch (error: any) {
+      setErrors({
+        address: 'Terjadi kesalahan. Silakan coba lagi.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!pendingOrder) {
@@ -91,7 +119,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const laundry = dummyLaundries.find((l) => l.id === pendingOrder.laundryId);
+  // Note: laundry info is already in pendingOrder, no need to fetch
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -152,8 +180,14 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="pt-4">
-                    <Button type="submit" variant="primary" size="lg" className="w-full">
-                      Buat Pesanan
+                    <Button 
+                      type="submit" 
+                      variant="primary" 
+                      size="lg" 
+                      className="w-full"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Membuat Pesanan...' : 'Buat Pesanan'}
                     </Button>
                   </div>
                 </form>
@@ -172,11 +206,6 @@ export default function CheckoutPage() {
                 <div className="mb-4">
                   <p className="text-sm text-gray-600 mb-1">Laundry</p>
                   <p className="font-semibold text-gray-900">{pendingOrder.laundryName}</p>
-                  {laundry && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {laundry.address}
-                    </p>
-                  )}
                 </div>
 
                 <div className="border-t border-gray-200 pt-4 mb-4">
@@ -223,4 +252,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
 

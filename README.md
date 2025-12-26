@@ -5,12 +5,13 @@ Frontend User untuk aplikasi Laundry Marketplace dengan fokus pada UI/UX dan alu
 ## 🚀 Fitur
 
 - ✅ Landing page marketplace laundry
-- ✅ Halaman login & register user (UI only / dummy)
-- ✅ List laundry dengan dummy data
-- ✅ Detail laundry & layanan
+- ✅ Halaman login & register user dengan backend API
+- ✅ List laundry dengan search, filter, dan sorting
+- ✅ Detail laundry & layanan dengan distance calculation
 - ✅ Flow pemesanan laundry (checkout)
-- ✅ Halaman tracking status laundry (dummy status)
+- ✅ Halaman tracking status pesanan
 - ✅ Responsive design (mobile & desktop)
+- ✅ Auto-detect location dan update ke backend
 
 ## 📁 Struktur Project
 
@@ -32,8 +33,10 @@ laundry-project/
 │   ├── layout/              # Header, Footer
 │   ├── ui/                  # Button, Card, Input
 │   └── laundry/             # LaundryCard
-├── lib/                     # Utilities & dummy data
-│   ├── dummy-data.ts        # Data dummy untuk laundry, services, orders
+├── lib/                     # Utilities
+│   ├── api.ts              # API client (Axios)
+│   ├── auth.ts             # Authentication utilities
+│   ├── geolocation.ts       # Geolocation utilities
 │   └── utils.ts             # Helper functions
 └── types/                   # TypeScript types
     └── index.ts             # Interface definitions
@@ -54,19 +57,40 @@ laundry-project/
 npm install
 ```
 
-2. Jalankan development server:
+2. Setup environment variables:
+```bash
+# Copy env.example ke .env.local
+cp env.example .env.local
+
+# Edit .env.local dan sesuaikan dengan konfigurasi backend Anda
+# NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+```
+
+3. Jalankan development server:
 ```bash
 npm run dev
 ```
 
-3. Buka [http://localhost:3000](http://localhost:3000) di browser
+4. Buka [http://localhost:3000](http://localhost:3000) di browser
 
 ## 📝 Catatan Penting
 
-⚠️ **Pengerjaan MASIH MENGGUNAKAN DUMMY DATA (mock data)**
-- ❌ Belum terhubung ke backend / database
-- ✅ Siap untuk integrasi backend di tahap selanjutnya (Go / PostgreSQL)
-- ✅ Data disimpan sementara di `sessionStorage` untuk demo flow
+✅ **Frontend sudah terintegrasi dengan Backend API!**
+- ✅ Terhubung ke backend Go / PostgreSQL
+- ✅ Semua data fetch dari API (bukan dummy data)
+- ✅ Authentication menggunakan JWT token
+- ✅ Location auto-detect dan update ke backend
+
+**Setup Environment Variables:**
+1. Copy `env.example` ke `.env.local`
+2. Edit `.env.local` dan set `NEXT_PUBLIC_API_URL` sesuai backend Anda:
+   ```env
+   NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+   ```
+3. Pastikan backend running di URL yang sesuai
+4. Lihat `API_INTEGRATION.md` untuk detail lengkap
+
+**⚠️ Important:** Semua credentials dan API URLs harus diset melalui environment variables, tidak boleh hardcoded di code.
 
 ## 🎨 Halaman yang Tersedia
 
@@ -89,13 +113,10 @@ npm run dev
 6. User klik "Buat Pesanan" → redirect ke `/orders/[id]` (tracking)
 7. User bisa lihat semua pesanan di `/orders`
 
-## 🎯 Next Steps untuk Integrasi Backend
+## 📚 Dokumentasi
 
-1. Ganti dummy data dengan API calls
-2. Implementasi authentication (JWT)
-3. Connect ke database PostgreSQL
-4. Implementasi payment gateway (opsional)
-5. Real-time tracking updates (WebSocket)
+- `API_INTEGRATION.md` - Dokumentasi integrasi frontend dengan backend API
+- `API_DOCUMENTATION.md` - Dokumentasi lengkap backend API endpoints
 
 ## 📱 Responsive Design
 

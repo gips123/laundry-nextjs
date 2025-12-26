@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { setAuth } from '@/lib/auth';
+import { authApi } from '@/lib/api';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -17,11 +19,12 @@ export default function RegisterPage() {
     address: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Dummy validation
+    // Validation
     const newErrors: Record<string, string> = {};
     if (!formData.name) {
       newErrors.name = 'Nama harus diisi';
@@ -35,6 +38,9 @@ export default function RegisterPage() {
     if (!formData.password) {
       newErrors.password = 'Password harus diisi';
     }
+    if (formData.password.length < 8) {
+      newErrors.password = 'Password minimal 8 karakter';
+    }
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Password tidak cocok';
     }
@@ -47,11 +53,46 @@ export default function RegisterPage() {
       return;
     }
 
-    // Dummy registration - in real app, this would call API
-    console.log('Registration attempt:', formData);
-    // Simulate successful registration
-    alert('Registrasi berhasil! (Dummy - belum terhubung ke backend)');
-    router.push('/login');
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      const response = await authApi.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        address: formData.address,
+        role: 'customer',
+      });
+
+      if (!response.success || !response.data) {
+        setErrors({
+          email: response.error || 'Registrasi gagal. Silakan coba lagi.',
+        });
+        return;
+      }
+
+      // Set auth (auto login after registration)
+      setAuth(response.data.user, response.data.token);
+      
+      // Save location to localStorage if available in user profile
+      // Location akan diambil otomatis saat user mengakses web (di halaman laundries)
+      if (response.data.user.latitude && response.data.user.longitude) {
+        localStorage.setItem('userLocation', JSON.stringify({
+          lat: response.data.user.latitude,
+          lng: response.data.user.longitude,
+        }));
+      }
+      
+      router.push('/laundries');
+    } catch (error: any) {
+      setErrors({
+        email: 'Terjadi kesalahan. Silakan coba lagi.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -143,8 +184,14 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <Button type="submit" variant="primary" size="lg" className="w-full">
-              Daftar
+            <Button 
+              type="submit" 
+              variant="primary" 
+              size="lg" 
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Mendaftar...' : 'Daftar'}
             </Button>
           </div>
         </form>
@@ -152,4 +199,5 @@ export default function RegisterPage() {
     </div>
   );
 }
+
 

@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { dummyLaundries } from '@/lib/dummy-data';
-import { Service } from '@/types';
+import { Laundry, Service } from '@/types';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils';
+import { requireAuth, getCurrentUser } from '@/lib/auth';
+import { laundryApi } from '@/lib/api';
 
 // Star icon component (fallback if heroicons not installed)
 const StarIcon = ({ className }: { className?: string }) => (
@@ -21,14 +22,80 @@ export default function LaundryDetailPage() {
   const router = useRouter();
   const laundryId = params?.id as string;
   
-  const laundry = dummyLaundries.find((l) => l.id === laundryId);
+  const [laundry, setLaundry] = useState<Laundry | null>(null);
   const [selectedServices, setSelectedServices] = useState<Map<string, number>>(new Map());
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!laundry) {
+  useEffect(() => {
+    fetchLaundryDetail();
+  }, [laundryId]);
+
+  const fetchLaundryDetail = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const currentUser = getCurrentUser();
+      const savedLocation = localStorage.getItem('userLocation');
+      let lat: number | undefined;
+      let lng: number | undefined;
+
+      // Priority: savedLocation (from geolocation) > currentUser.location (from backend)
+      // Jika tidak ada query params lat/lng, backend akan otomatis menggunakan location terbaru dari user profile
+      if (savedLocation) {
+        try {
+          const location = JSON.parse(savedLocation);
+          lat = location.lat;
+          lng = location.lng;
+        } catch (e) {
+          // Invalid saved location
+        }
+      }
+
+      if (!lat && currentUser?.latitude) {
+        lat = currentUser.latitude;
+        lng = currentUser.longitude;
+      }
+
+      // Jika ada lat/lng, kirim sebagai query params
+      // Jika tidak ada, backend akan otomatis menggunakan location dari user profile
+      const response = await laundryApi.getById(laundryId, { lat, lng });
+
+      if (response.success && response.data) {
+        // Normalize API response to match our types
+        const normalizedLaundry: Laundry = {
+          ...response.data,
+          reviewCount: response.data.review_count || response.data.reviewCount,
+          priceRange: response.data.price_range || response.data.priceRange,
+          image: response.data.image_url || response.data.image,
+          isOpen: response.data.is_open !== undefined ? response.data.is_open : response.data.isOpen,
+          operatingHours: response.data.operating_hours || response.data.operatingHours,
+        };
+        setLaundry(normalizedLaundry);
+      } else {
+        setError(response.error || 'Laundry tidak ditemukan');
+      }
+    } catch (err: any) {
+      setError('Terjadi kesalahan saat memuat data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Memuat...</p>
+      </div>
+    );
+  }
+
+  if (error || !laundry) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Laundry tidak ditemukan</h1>
+          <h1 className="text-2xl font-bold mb-4">{error || 'Laundry tidak ditemukan'}</h1>
           <Button onClick={() => router.push('/laundries')}>
             Kembali ke Daftar Laundry
           </Button>
@@ -50,7 +117,7 @@ export default function LaundryDetailPage() {
   const calculateTotal = () => {
     let total = 0;
     selectedServices.forEach((quantity, serviceId) => {
-      const service = laundry.services.find((s) => s.id === serviceId);
+      const service = laundry.services?.find((s) => s.id === serviceId);
       if (service) {
         total += service.price * quantity;
       }
@@ -63,12 +130,14 @@ export default function LaundryDetailPage() {
       alert('Pilih minimal satu layanan');
       return;
     }
-    // Store selected services in sessionStorage for checkout page
+
+    // Store selected services in sessionStorage first (before checking auth)
+    // This way, if user needs to login, the order data is preserved
     const orderData = {
       laundryId: laundry.id,
       laundryName: laundry.name,
       services: Array.from(selectedServices.entries()).map(([serviceId, quantity]) => {
-        const service = laundry.services.find((s) => s.id === serviceId);
+        const service = laundry.services?.find((s) => s.id === serviceId);
         return {
           serviceId,
           serviceName: service?.name || '',
@@ -80,6 +149,13 @@ export default function LaundryDetailPage() {
       totalPrice: calculateTotal(),
     };
     sessionStorage.setItem('pendingOrder', JSON.stringify(orderData));
+
+    // Check if user is authenticated
+    if (!requireAuth('/checkout')) {
+      return; // User will be redirected to login, and after login will go to checkout
+    }
+
+    // If authenticated, proceed to checkout
     router.push('/checkout');
   };
 
@@ -100,7 +176,7 @@ export default function LaundryDetailPage() {
             <Card>
               <div className="relative h-64 w-full">
                 <Image
-                  src={laundry.image}
+                  src={laundry.image || laundry.image_url || '/placeholder-laundry.jpg'}
                   alt={laundry.name}
                   fill
                   className="object-cover"
@@ -118,11 +194,11 @@ export default function LaundryDetailPage() {
                         {laundry.rating}
                       </span>
                       <span className="text-gray-500">
-                        ({laundry.reviewCount} ulasan)
+                        ({(laundry.reviewCount || laundry.review_count || 0)} ulasan)
                       </span>
                     </div>
                   </div>
-                  {!laundry.isOpen && (
+                  {!(laundry.isOpen !== undefined ? laundry.isOpen : laundry.is_open) && (
                     <span className="bg-red-500 text-white px-3 py-1 rounded text-sm font-medium">
                       Tutup
                     </span>
@@ -143,7 +219,7 @@ export default function LaundryDetailPage() {
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    {laundry.operatingHours.open} - {laundry.operatingHours.close}
+                    {(laundry.operatingHours || laundry.operating_hours)?.open} - {(laundry.operatingHours || laundry.operating_hours)?.close}
                   </div>
                   <div className="flex items-center">
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -163,61 +239,65 @@ export default function LaundryDetailPage() {
                   Layanan yang Tersedia
                 </h2>
                 <div className="space-y-4">
-                  {laundry.services.map((service) => {
-                    const quantity = selectedServices.get(service.id) || 0;
-                    return (
-                      <div
-                        key={service.id}
-                        className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 className="font-semibold text-gray-900">
-                              {service.name}
-                            </h3>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {service.description}
-                            </p>
-                            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                              <span>
-                                {formatCurrency(service.price)} / {service.unit}
-                              </span>
-                              <span>•</span>
-                              <span>Estimasi: {service.estimatedTime} jam</span>
+                  {laundry.services && laundry.services.length > 0 ? (
+                    laundry.services.map((service) => {
+                      const quantity = selectedServices.get(service.id) || 0;
+                      return (
+                        <div
+                          key={service.id}
+                          className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors"
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h3 className="font-semibold text-gray-900">
+                                {service.name}
+                              </h3>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {service.description}
+                              </p>
+                              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                <span>
+                                  {formatCurrency(service.price)} / {service.unit}
+                                </span>
+                                <span>•</span>
+                                <span>Estimasi: {service.estimatedTime} jam</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex items-center justify-between mt-4">
-                          <div className="flex items-center space-x-3">
-                            <button
-                              onClick={() => handleQuantityChange(service.id, quantity - 1)}
-                              disabled={quantity === 0}
-                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              -
-                            </button>
-                            <span className="w-8 text-center font-medium">
-                              {quantity}
-                            </span>
-                            <button
-                              onClick={() => handleQuantityChange(service.id, quantity + 1)}
-                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
-                            >
-                              +
-                            </button>
-                            <span className="text-sm text-gray-600 ml-2">
-                              {service.unit}
-                            </span>
+                          <div className="flex items-center justify-between mt-4">
+                            <div className="flex items-center space-x-3">
+                              <button
+                                onClick={() => handleQuantityChange(service.id, quantity - 1)}
+                                disabled={quantity === 0}
+                                className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                -
+                              </button>
+                              <span className="w-8 text-center font-medium">
+                                {quantity}
+                              </span>
+                              <button
+                                onClick={() => handleQuantityChange(service.id, quantity + 1)}
+                                className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                              >
+                                +
+                              </button>
+                              <span className="text-sm text-gray-600 ml-2">
+                                {service.unit}
+                              </span>
+                            </div>
+                            {quantity > 0 && (
+                              <span className="font-semibold text-blue-600">
+                                {formatCurrency(service.price * quantity)}
+                              </span>
+                            )}
                           </div>
-                          {quantity > 0 && (
-                            <span className="font-semibold text-blue-600">
-                              {formatCurrency(service.price * quantity)}
-                            </span>
-                          )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  ) : (
+                    <p className="text-gray-500 text-sm">Tidak ada layanan tersedia</p>
+                  )}
                 </div>
               </div>
             </Card>
@@ -238,7 +318,7 @@ export default function LaundryDetailPage() {
                 ) : (
                   <div className="space-y-3 mb-4">
                     {Array.from(selectedServices.entries()).map(([serviceId, quantity]) => {
-                      const service = laundry.services.find((s) => s.id === serviceId);
+                      const service = laundry.services?.find((s) => s.id === serviceId);
                       if (!service) return null;
                       return (
                         <div key={serviceId} className="flex justify-between text-sm">
@@ -267,9 +347,9 @@ export default function LaundryDetailPage() {
                     size="lg"
                     className="w-full"
                     onClick={handleCheckout}
-                    disabled={selectedServices.size === 0 || !laundry.isOpen}
+                    disabled={selectedServices.size === 0 || !(laundry.isOpen !== undefined ? laundry.isOpen : laundry.is_open) || !laundry.services || laundry.services.length === 0}
                   >
-                    {!laundry.isOpen ? 'Laundry Sedang Tutup' : 'Lanjutkan Pemesanan'}
+                    {!(laundry.isOpen !== undefined ? laundry.isOpen : laundry.is_open) ? 'Laundry Sedang Tutup' : 'Lanjutkan Pemesanan'}
                   </Button>
                 </div>
               </div>

@@ -1,11 +1,46 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import Button from '@/components/ui/Button';
-import { dummyLaundries } from '@/lib/dummy-data';
 import LaundryCard from '@/components/laundry/LaundryCard';
+import { laundryApi } from '@/lib/api';
+import { Laundry } from '@/types';
 
 export default function Home() {
-  const featuredLaundries = dummyLaundries.slice(0, 3);
+  const [featuredLaundries, setFeaturedLaundries] = useState<Laundry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchFeaturedLaundries();
+  }, []);
+
+  const fetchFeaturedLaundries = async () => {
+    try {
+      const response = await laundryApi.getAll({
+        page: 1,
+        limit: 3,
+        sort_by: 'rating',
+      });
+
+      if (response.success && response.data) {
+        // Normalize API response
+        const normalizedLaundries: Laundry[] = response.data.laundries.map((laundry: any) => ({
+          ...laundry,
+          reviewCount: laundry.review_count || laundry.reviewCount,
+          priceRange: laundry.price_range || laundry.priceRange,
+          image: laundry.image_url || laundry.image,
+          isOpen: laundry.is_open !== undefined ? laundry.is_open : laundry.isOpen,
+          operatingHours: laundry.operating_hours || laundry.operatingHours,
+        }));
+        setFeaturedLaundries(normalizedLaundries);
+      }
+    } catch (error) {
+      console.error('Failed to fetch featured laundries:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -15,7 +50,7 @@ export default function Home() {
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
               Cuci Pakaian Anda dengan Mudah
-            </h1>
+          </h1>
             <p className="text-xl md:text-2xl mb-8 text-blue-100 max-w-2xl mx-auto">
               Temukan laundry terbaik di sekitar Anda. Pick-up & delivery gratis, 
               harga terjangkau, dan hasil yang memuaskan.
@@ -95,11 +130,21 @@ export default function Home() {
               </Button>
             </Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredLaundries.map((laundry) => (
-              <LaundryCard key={laundry.id} laundry={laundry} />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Memuat data...</p>
+            </div>
+          ) : featuredLaundries.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredLaundries.map((laundry) => (
+                <LaundryCard key={laundry.id} laundry={laundry} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Belum ada laundry tersedia</p>
+            </div>
+          )}
         </div>
       </section>
 

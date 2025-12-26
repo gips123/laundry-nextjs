@@ -5,17 +5,85 @@ import Link from 'next/link';
 import { Order } from '@/types';
 import Card from '@/components/ui/Card';
 import { formatCurrency, formatDate, getStatusLabel, getStatusColor } from '@/lib/utils';
+import { orderApi } from '@/lib/api';
+import { requireAuth } from '@/lib/auth';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load orders from sessionStorage (dummy - in real app, this would fetch from API)
-    const stored = sessionStorage.getItem('orders');
-    if (stored) {
-      setOrders(JSON.parse(stored));
-    }
+    if (!requireAuth()) return;
+    fetchOrders();
   }, []);
+
+  const fetchOrders = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await orderApi.getAll();
+
+      if (response.success && response.data) {
+        // Normalize API response
+        const normalizedOrders: Order[] = response.data.orders.map((order: any) => ({
+          id: order.id,
+          laundryId: order.laundry_id,
+          laundryName: order.laundry_name,
+          services: order.services || [],
+          totalPrice: order.total_price,
+          status: order.status,
+          createdAt: order.created_at,
+          estimatedPickup: order.estimated_pickup,
+          estimatedDelivery: order.estimated_delivery,
+          address: order.delivery_address || order.address,
+          notes: order.notes,
+        }));
+        setOrders(normalizedOrders);
+      } else {
+        setError(response.error || 'Gagal memuat pesanan');
+      }
+    } catch (err: any) {
+      setError('Terjadi kesalahan saat memuat pesanan');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Pesanan Saya</h1>
+          <div className="text-center py-12">
+            <p className="text-gray-500 text-lg">Memuat...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Pesanan Saya</h1>
+          <Card>
+            <div className="p-12 text-center">
+              <p className="text-red-500 mb-4">{error}</p>
+              <button
+                onClick={fetchOrders}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Coba Lagi
+              </button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (orders.length === 0) {
     return (
@@ -124,4 +192,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
 

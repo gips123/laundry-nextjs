@@ -2,22 +2,26 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { setAuth } from '@/lib/auth';
+import { authApi } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Dummy validation
+    // Validation
     const newErrors: { email?: string; password?: string } = {};
     if (!formData.email) {
       newErrors.email = 'Email harus diisi';
@@ -31,11 +35,44 @@ export default function LoginPage() {
       return;
     }
 
-    // Dummy login - in real app, this would call API
-    console.log('Login attempt:', formData);
-    // Simulate successful login
-    alert('Login berhasil! (Dummy - belum terhubung ke backend)');
-    router.push('/laundries');
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      const response = await authApi.login(formData.email, formData.password);
+      
+      if (!response.success || !response.data) {
+        setErrors({
+          email: response.error || 'Email atau password salah',
+          password: response.error || 'Email atau password salah',
+        });
+        return;
+      }
+
+      // Set auth
+      setAuth(response.data.user, response.data.token);
+      
+      // Save location to localStorage if available in user profile
+      // Location dari backend akan otomatis digunakan untuk distance calculation
+      if (response.data.user.latitude && response.data.user.longitude) {
+        localStorage.setItem('userLocation', JSON.stringify({
+          lat: response.data.user.latitude,
+          lng: response.data.user.longitude,
+        }));
+      }
+      
+      // Get return URL from query params or default to laundries
+      const returnUrl = searchParams?.get('returnUrl') || '/laundries';
+      
+      router.push(returnUrl);
+    } catch (error: any) {
+      setErrors({
+        email: 'Terjadi kesalahan. Silakan coba lagi.',
+        password: 'Terjadi kesalahan. Silakan coba lagi.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -45,6 +82,13 @@ export default function LoginPage() {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Masuk ke Akun Anda
           </h2>
+          {searchParams?.get('returnUrl') && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800 text-center">
+                Anda perlu masuk untuk melanjutkan pemesanan
+              </p>
+            </div>
+          )}
           <p className="mt-2 text-center text-sm text-gray-600">
             Atau{' '}
             <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
@@ -95,8 +139,14 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <Button type="submit" variant="primary" size="lg" className="w-full">
-              Masuk
+            <Button 
+              type="submit" 
+              variant="primary" 
+              size="lg" 
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Memproses...' : 'Masuk'}
             </Button>
           </div>
         </form>
@@ -104,4 +154,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
 
